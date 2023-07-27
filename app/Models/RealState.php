@@ -12,6 +12,7 @@ class RealState extends Model
     protected $table = "real_state";
 
     protected $fillable = [
+        'id',
         "title",
         "description",
         "content",
@@ -32,5 +33,10 @@ class RealState extends Model
     public function categories()
     {
         return $this->belongsToMany(Category::class, 'real_state_categories');
+    }
+
+    public function photos()
+    {
+        return $this->hasMany(RealStatePhoto::class);
     }
 }

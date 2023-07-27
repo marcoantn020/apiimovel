@@ -20,14 +20,14 @@ class RealStateController extends Controller
 
     public function index()
     {
-        $real_state = $this->realState->paginate(10);
-        return response()->json($real_state, 200);
+        $real_state = auth('api')->user()->real_state();
+        return response()->json($real_state->paginate(10), 200);
     }
 
     public function show($id)
     {
         try {
-            $real_state = $this->realState->find($id);
+            $real_state = auth('api')->user()->real_state()->with('photos')->find($id);
             return response()->json(["data" => $real_state], 200);
         } catch (\Exception $e) {
             $messages = new APIMessagesErrors($e->getMessage());
@@ -38,11 +38,29 @@ class RealStateController extends Controller
     public function store(RealStateRequest $request)
     {
         try {
+            $images = $request->file('images');
+
             $data = $request->validated();
+            $data['user_id'] = auth('api')->user()->id;
             $data['slug'] = Str::slug($data['title']);
+
             $real_state = $this->realState->create($data);
             if(isset($data["categories"]) && count($data["categories"])) {
-                $r = $real_state->categories()->sync($data["categories"]);
+                $real_state->categories()->sync($data["categories"]);
+            }
+
+            if($images) {
+                $imagesUploaded = [];
+                foreach ($images as $image) {
+                    $path = $image->store('images', 'public');
+                    $imagesUploaded[] = [
+                        'photo' => $path,
+                        'is_thumb' => false,
+                        'real_state_id' => $real_state->id
+                    ];
+                }
+
+                $real_state->photos()->insert($imagesUploaded);
             }
 
             return response()->json([
@@ -58,16 +76,30 @@ class RealStateController extends Controller
     {
         try {
             $data = $request->validated();
+            $images = $request->file("images");
 
             if($data["title"]) {
                 $data['slug'] = Str::slug($data['title']);
             }
 
-            $real_state = $this->realState->findOrFail($id);
+            $real_state = auth('api')->user()->real_state()->findOrFail($id);
             $real_state->update($data);
 
             if(isset($data["categories"]) && count($data["categories"])) {
                 $real_state->categories()->sync($data["categories"]);
+            }
+
+            if($images) {
+                $imagesUploaded = [];
+                foreach ($images as $image) {
+                    $path = $image->store('images', 'public');
+                    $imagesUploaded[] = [
+                        'photo' => $path,
+                        'is_thumb' => false,
+                        'real_state_id' => $real_state->id
+                    ];
+                }
+                $real_state->photos()->insert($imagesUploaded);
             }
 
             return response()->json([
@@ -84,7 +116,7 @@ class RealStateController extends Controller
     {
         try {
 
-            $real_state = $this->realState->findOrFail($id);
+            $real_state = auth('api')->user()->real_state()->findOrFail($id);
             $real_state->delete();
 
             return response()->json([
